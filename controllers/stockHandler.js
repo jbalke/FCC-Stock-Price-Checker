@@ -8,29 +8,26 @@ function parseBoolean(val) {
    return val === 'true' || val === true; 
 }
 
-function queryAPI(symbol) {
-  //console.log(symbol);
-  return new Promise((resolve, reject) => {
-    axios.get(`/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`)
-    .then(result => {
-      if (result) {
-        var { data:{ "Global Quote":{ "01. symbol": stock, "05. price": price }}} = result;
-        resolve({stock, price});
-      } else {
-        reject(new Error('Unknown stock symbol'));
-      }
-    })
-    .catch(err => {
-      reject(err);
-    });
-  }) 
-}
-
 function parseDBDoc(doc) {
   var {stock, price } = doc;
   var likes = doc.IPAddresses.length - 1;
   return { stock, price, likes };
 }
+
+async function queryAPI(symbol) {
+  try {
+    var result = await axios.get(`/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+    if (result) {
+      var { data:{ "Global Quote":{ "01. symbol": stock, "05. price": price }}} = result;
+      return {stock, price};
+    } else {
+      throw new Error('Unknown stock symbol');
+    }
+  }
+  catch(err) {
+    throw err;
+  }
+} 
 
 function fetchStock(db, stock, IPAddress, like = false, ageInSeconds = STOCK_EXPIRY_SECONDS) {
   stock = stock.toUpperCase();
@@ -61,7 +58,7 @@ function fetchStock(db, stock, IPAddress, like = false, ageInSeconds = STOCK_EXP
             });
           })
           .catch(err => {
-            console.log(err);
+            return reject(err);
           });
         } else {
           //Found recent stock entry in DB, update likes/IPAddresses
@@ -69,7 +66,9 @@ function fetchStock(db, stock, IPAddress, like = false, ageInSeconds = STOCK_EXP
           .then(result => {
             return resolve(parseDBDoc(result.value));
           })
-          .catch(err => {console.log(err)});
+          .catch(err => {
+            return reject(err);
+          });
         }
       } else {
         queryAPI(stock)
@@ -82,12 +81,12 @@ function fetchStock(db, stock, IPAddress, like = false, ageInSeconds = STOCK_EXP
           });
         })
         .catch(err => {
-            console.log(err);
+          return reject(err);
         });
       }
     })
     .catch(err => {
-      console.log(err);
+      return reject(err);
     });
   });
 }
